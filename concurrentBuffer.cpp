@@ -22,6 +22,10 @@ public:
 		rear = 0;
 	}
 
+	~ConcurrentBuffer(){
+		delete buffer;
+	}
+
 	void PushData(int data){
 		std::unique_lock<std::mutex> locker(bufferMutex);
 
