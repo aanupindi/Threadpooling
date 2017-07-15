@@ -18,9 +18,8 @@ class ThreadPool{
 	std::condition_variable workerQueueCV;
 	std::atomic_bool terminate;
 
-
 	void GetTask(){
-					std::cout << "Waiting...." << std::endl;
+
 		while(1){
 
 			//lock on the queue
@@ -31,7 +30,7 @@ class ThreadPool{
 			workerQueueCV.wait(tasklocker, [&](){return !workerQueue.empty() || terminate.load() == true;});
 			std::cout<<"Working on task "<<std::endl;
 			//Exit condition
-			if(terminate.load() == true) 
+			if(workerQueue.empty() && terminate.load() == true) 
 			{
 				std::cout << "terminate called. Exiting!" << std::endl;
 				return;
@@ -44,13 +43,23 @@ class ThreadPool{
 			currentJob(); //do the job
 
 		}
+	}
 
+	void WaitForAllTasks(){
+		for(int i = 0;i<numThreads; ++i){
+			workerThreads[i]->join();
+		}
+	}	
 
+	void End(){		
+		terminate.store(true);
+		workerQueueCV.notify_all();
 	}
 
 public:
-	ThreadPool(){
-		numThreads = thread::hardware_concurrency(); //number of threads supported in the system
+	ThreadPool(uint8_t t_numThreads){
+		uint8_t threadsSupported = thread::hardware_concurrency();
+		numThreads = (t_numThreads > threadsSupported)? t_numThreads: threadsSupported; //number of threads supported in the system
 		workerThreads.resize(numThreads);
 		terminate.store(false);
 	}
@@ -63,9 +72,9 @@ public:
 	}
 
 	~ThreadPool(){
-		//WaitForAllTasks();
-		//workerThreads.clear();
-	}
+			End();
+			WaitForAllTasks();	
+		}
 
 	void AddTask(std::function<void()> threadFunction){
 
@@ -78,17 +87,6 @@ public:
 		workerQueueCV.notify_one();	
 
 	}
-	void WaitForAllTasks(){
-		std::cout << "numThreads is " <<numThreads <<std::endl;
-		for(int i = 0;i<numThreads; ++i){
-			workerThreads[i]->join();
-		}
-	}	
-
-	void End(){		
-		terminate.store(true);
-		workerQueueCV.notify_all();
-	}
 		
 };
 
@@ -98,11 +96,9 @@ void Printfunction(){
 
 int main(int argc, char** argv){
 
-	ThreadPool pool1;
+	ThreadPool pool1(5);
 	pool1.Init();
-	pool1.AddTask(Printfunction);
-	std::cout<<"before the end " <<std::endl;
-		pool1.End();
-	pool1.WaitForAllTasks();
 
+	for (int i = 0;i<5;++i)
+		pool1.AddTask([](){std::cout<<"Print this from "<<std::this_thread::get_id()<<std::endl;});
 }
